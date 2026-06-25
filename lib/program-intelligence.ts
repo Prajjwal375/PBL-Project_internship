@@ -22,6 +22,29 @@ const columns = {
   sourceRisk: "Derived: Risk status",
 };
 
+// Raw per-class, per-subject columns. These are populated independently of
+// the "classes"/"subject" text fields above, so they are the source of
+// truth for any Grade or Subject level metric.
+const classColumns: Record<6 | 7 | 8, { enrollment: string; science: string; math: string }> = {
+  6: {
+    enrollment: "Total number of students enrolled in Class 6, including all sections",
+    science: "Average student attendance during the Class 6 PBL Science session. If you did not teach Science in Class 6, enter 0.",
+    math: "Average student attendance during the Class 6 PBL Math session. If you did not teach Math in Class 6, enter 0.",
+  },
+  7: {
+    enrollment: "Total number of students enrolled in Class 7, including all sections",
+    science: "Average student attendance during the Class 7 PBL Science session. If you did not teach Science in Class 7, enter 0.",
+    math: "Average student attendance during the Class 7 PBL Math session. If you did not teach Math in Class 7, enter 0.",
+  },
+  8: {
+    enrollment: "Total number of students enrolled in Class 8, including all sections",
+    science: "Average student attendance during the Class 8 PBL Science session. If you did not teach Science in Class 8, enter 0.",
+    math: "Average student attendance during the Class 8 PBL Math session. If you did not teach Math in Class 8, enter 0.",
+  },
+};
+
+type ClassBreakdown = Record<6 | 7 | 8, { enrollment: number; science: number; math: number }>;
+
 export type RiskStatus = "On Track" | "Behind" | "At Risk" | "Critical";
 
 export type ProgramFilters = {
@@ -46,6 +69,7 @@ export type PblRecord = {
   attendance: number;
   attendanceRate: number;
   sourceRisk: string;
+  classBreakdown: ClassBreakdown;
 };
 
 export type GeographySummary = {
@@ -171,21 +195,49 @@ function sortMonths(values: string[]) {
   return unique(values);
 }
 
-function extractGradeNumbers(classes: string) {
-  return Array.from(classes.matchAll(/\b([6-8])\b/g), (match) => `Class ${match[1]}`);
+// Which class numbers should be included in a metric calculation, given the
+// selected Grade filter (defaults to all three when no grade is selected).
+function gradesToInclude(grade?: string): (6 | 7 | 8)[] {
+  const selected = grade?.match(/[6-8]/)?.[0];
+  return selected ? [Number(selected) as 6 | 7 | 8] : [6, 7, 8];
 }
 
-function matchesGrade(classes: string, grade?: string) {
-  if (!grade) {
-    return true;
+// Which subject sessions should be included, given the selected Subject
+// filter (defaults to both Science and Math when no subject is selected).
+function subjectsToInclude(subject?: string): ("science" | "math")[] {
+  if (!subject) return ["science", "math"];
+  const lower = subject.toLowerCase();
+  const hasScience = lower.includes("science");
+  const hasMath = lower.includes("math");
+  if (hasScience && !hasMath) return ["science"];
+  if (hasMath && !hasScience) return ["math"];
+  return ["science", "math"];
+}
+
+// Computes enrollment/attendance/rate for ONE record, narrowed to the
+// selected grade(s) and subject(s). This reads directly from the raw
+// per-class columns rather than the row's pre-aggregated totals, so a
+// Grade or Subject filter changes the actual numbers, not just which rows
+// are displayed.
+function recordMetrics(record: PblRecord, filters: Pick<ProgramFilters, "grade" | "subject">) {
+  const grades = gradesToInclude(filters.grade);
+  const subjects = subjectsToInclude(filters.subject);
+
+  let enrollment = 0;
+  let attendance = 0;
+
+  for (const grade of grades) {
+    const breakdown = record.classBreakdown[grade];
+    enrollment += breakdown.enrollment;
+    for (const subject of subjects) {
+      attendance += breakdown[subject];
+    }
   }
 
-  const selected = grade.match(/\d+/)?.[0];
-  if (!selected) {
-    return true;
-  }
+  const sessionCount = subjects.length; // 1 session if a single subject is selected, 2 otherwise
+  const rate = enrollment ? attendance / (enrollment * sessionCount) : 0;
 
-  return new RegExp(`\\b${selected}\\b`).test(classes);
+  return { enrollment, attendance, rate };
 }
 
 export function classifyRisk(rate: number): RiskStatus {
@@ -213,6 +265,23 @@ const pblRecords: PblRecord[] = readdirSync(PBL_ROOT)
     attendance: numberValue(row[columns.attendance]),
     attendanceRate: numberValue(row[columns.attendanceRate]),
     sourceRisk: row[columns.sourceRisk],
+    classBreakdown: {
+      6: {
+        enrollment: numberValue(row[classColumns[6].enrollment]),
+        science: numberValue(row[classColumns[6].science]),
+        math: numberValue(row[classColumns[6].math]),
+      },
+      7: {
+        enrollment: numberValue(row[classColumns[7].enrollment]),
+        science: numberValue(row[classColumns[7].science]),
+        math: numberValue(row[classColumns[7].math]),
+      },
+      8: {
+        enrollment: numberValue(row[classColumns[8].enrollment]),
+        science: numberValue(row[classColumns[8].science]),
+        math: numberValue(row[classColumns[8].math]),
+      },
+    },
   }));
 
 const grantFinanceRows: GrantFinanceRow[] = readCsvFile(path.join(GRANT_ROOT, "01_Grant_Profile_and_Finance.csv")).map((row) => ({
@@ -270,41 +339,39 @@ export function getPblRecords() {
   return [...pblRecords];
 }
 
-export function getFilterOptions() {
+export function getFilterOptions(filters?: Pick<ProgramFilters, "district">) {
   const records = getPblRecords();
+  const districtRecords = filters?.district ? records.filter(r => r.district === filters.district) : records;
   return {
     months: sortMonths(records.map((record) => record.month)),
     districts: unique(records.map((record) => record.district)),
-    blocks: unique(records.map((record) => record.block)),
+    blocks: unique(districtRecords.map((record) => record.block)),
     grades: ["Class 6", "Class 7", "Class 8"],
-    subjects: unique(records.map((record) => record.subject)),
+    subjects: ["Science", "Math"],
   };
 }
 
 export function filterPblRecords(records: PblRecord[], filters: ProgramFilters) {
-  return records.filter((record) => {
-    const subjectMatch = !filters.subject || record.subject.toLowerCase().includes(filters.subject.toLowerCase());
+  const selectedGrade = filters.grade?.match(/[6-8]/)?.[0];
+  const selectedSubject = filters.subject?.toLowerCase();
 
-    return (
+  return records.filter(
+    (record) =>
       (!filters.month || record.month === filters.month) &&
       (!filters.district || record.district === filters.district) &&
       (!filters.block || record.block === filters.block) &&
-      matchesGrade(record.classes, filters.grade) &&
-      subjectMatch
-    );
-  });
+      (!selectedGrade || (record.classes && record.classes.includes(selectedGrade))) &&
+      (!selectedSubject || (record.subject && record.subject.toLowerCase().includes(selectedSubject))),
+  );
 }
 
-function buildMetrics(records: PblRecord[]) {
+function buildMetrics(records: PblRecord[], filters: Pick<ProgramFilters, "grade" | "subject"> = {}) {
   const totalSchools = records.length;
   const participatingSchools = records.filter((record) => record.conducted).length;
   const evidenceSubmitted = records.filter((record) => record.evidenceSubmitted).length;
-  const totalEnrollment = records.reduce((sum, record) => sum + record.enrollment, 0);
-  const totalAttendance = records.reduce((sum, record) => sum + record.attendance, 0);
-  const participationRate = totalSchools ? participatingSchools / totalSchools : 0;
-  const evidenceRate = participatingSchools ? evidenceSubmitted / participatingSchools : 0;
-  const attendanceRate = totalEnrollment ? totalAttendance / (totalEnrollment * 2) : 0;
 
+  let totalEnrollment = 0;
+  let totalAttendance = 0;
   const riskDistribution = {
     "On Track": 0,
     "Behind": 0,
@@ -313,9 +380,16 @@ function buildMetrics(records: PblRecord[]) {
   };
 
   records.forEach((record) => {
-    const status = classifyRisk(record.attendanceRate);
-    riskDistribution[status]++;
+    const { enrollment, attendance, rate } = recordMetrics(record, filters);
+    totalEnrollment += enrollment;
+    totalAttendance += attendance;
+    riskDistribution[classifyRisk(rate)]++;
   });
+
+  const participationRate = totalSchools ? participatingSchools / totalSchools : 0;
+  const evidenceRate = participatingSchools ? evidenceSubmitted / participatingSchools : 0;
+  const sessionCount = subjectsToInclude(filters.subject).length;
+  const attendanceRate = totalEnrollment ? totalAttendance / (totalEnrollment * sessionCount) : 0;
 
   return {
     totalSchools,
@@ -331,7 +405,11 @@ function buildMetrics(records: PblRecord[]) {
   };
 }
 
-function buildGeographySummary(records: PblRecord[], field: "district" | "block"): GeographySummary[] {
+function buildGeographySummary(
+  records: PblRecord[],
+  field: "district" | "block",
+  filters: Pick<ProgramFilters, "grade" | "subject"> = {},
+): GeographySummary[] {
   const groups = new Map<string, PblRecord[]>();
 
   for (const record of records) {
@@ -343,7 +421,7 @@ function buildGeographySummary(records: PblRecord[], field: "district" | "block"
 
   return Array.from(groups.entries())
     .map(([name, groupRecords]) => {
-      const metrics = buildMetrics(groupRecords);
+      const metrics = buildMetrics(groupRecords, filters);
       return {
         name,
         totalSchools: metrics.totalSchools,
@@ -365,21 +443,24 @@ function buildGeographySummary(records: PblRecord[], field: "district" | "block"
     });
 }
 
-function buildSchoolRankings(records: PblRecord[]) {
-  const schools = records.map((record) => ({
-    school: record.school,
-    schoolCode: record.schoolCode,
-    district: record.district,
-    block: record.block,
-    classes: record.classes,
-    subject: record.subject,
-    conducted: record.conducted,
-    evidenceSubmitted: record.evidenceSubmitted,
-    enrollment: record.enrollment,
-    attendance: record.attendance,
-    attendanceRate: percent(record.attendanceRate),
-    riskStatus: classifyRisk(record.attendanceRate),
-  }));
+function buildSchoolRankings(records: PblRecord[], filters: Pick<ProgramFilters, "grade" | "subject"> = {}) {
+  const schools = records.map((record) => {
+    const { enrollment, attendance, rate } = recordMetrics(record, filters);
+    return {
+      school: record.school,
+      schoolCode: record.schoolCode,
+      district: record.district,
+      block: record.block,
+      classes: record.classes,
+      subject: record.subject,
+      conducted: record.conducted,
+      evidenceSubmitted: record.evidenceSubmitted,
+      enrollment,
+      attendance,
+      attendanceRate: percent(rate),
+      riskStatus: classifyRisk(rate),
+    };
+  });
 
   const top = [...schools].sort((left, right) => right.attendanceRate - left.attendanceRate).slice(0, 8);
   const bottom = [...schools].sort((left, right) => left.attendanceRate - right.attendanceRate).slice(0, 8);
@@ -403,8 +484,8 @@ function movementSnapshot(filters: ProgramFilters, records: PblRecord[]): Moveme
   }
 
   const baseFilters = { ...filters, month: undefined };
-  const current = buildMetrics(filterPblRecords(records, { ...baseFilters, month: selectedMonth }));
-  const previous = buildMetrics(filterPblRecords(records, { ...baseFilters, month: previousMonth }));
+  const current = buildMetrics(filterPblRecords(records, { ...baseFilters, month: selectedMonth }), filters);
+  const previous = buildMetrics(filterPblRecords(records, { ...baseFilters, month: previousMonth }), filters);
 
   return [
     {
@@ -460,25 +541,65 @@ function buildSummary(
 }
 
 function buildActions(blocks: GeographySummary[], districts: GeographySummary[]): ReviewAction[] {
-  const weakestBlocks = [...blocks].sort((left, right) => left.attendanceRate - right.attendanceRate).slice(0, 2);
-  const weakestDistricts = [...districts].sort((left, right) => left.attendanceRate - right.attendanceRate).slice(0, 1);
+  const byAttendance = (list: GeographySummary[]) => [...list].sort((left, right) => left.attendanceRate - right.attendanceRate);
+  const byEvidence = (list: GeographySummary[]) => [...list].sort((left, right) => left.evidenceRate - right.evidenceRate);
 
-  return [
-    ...weakestBlocks.map((block, index) => ({
+  const weakestBlocks = byAttendance(blocks).slice(0, 2);
+  const weakestDistrictAttendance = byAttendance(districts)[0];
+  const weakestDistrictEvidence = byEvidence(districts)[0];
+  const weakestBlockEvidence = byEvidence(blocks)[0];
+
+  const candidates: ReviewAction[] = [];
+
+  weakestBlocks.forEach((block, index) => {
+    candidates.push({
       owner: index === 0 ? "Block Coordinator" : "Program Manager",
-      priority: index === 0 ? "High" : "Medium",
+      priority: block.riskStatus === "Critical" || block.riskStatus === "At Risk" ? "High" : "Medium",
       dueDate: "Within 7 days",
-      status: "Open" as const,
-      linkedMetric: `${block.name} attendance at ${block.attendanceRate}%`,
-    })),
-    ...weakestDistricts.map((district) => ({
+      status: "Open",
+      linkedMetric: `${block.name} block attendance at ${block.attendanceRate}% (${block.riskStatus})`,
+    });
+  });
+
+  if (weakestDistrictAttendance) {
+    candidates.push({
       owner: "District Lead",
-      priority: "High" as const,
+      priority: weakestDistrictAttendance.riskStatus === "Critical" || weakestDistrictAttendance.riskStatus === "At Risk" ? "High" : "Medium",
       dueDate: "Within 10 days",
-      status: "Watching" as const,
-      linkedMetric: `${district.name} evidence rate at ${district.evidenceRate}%`,
-    })),
-  ].slice(0, 3);
+      status: "Watching",
+      linkedMetric: `${weakestDistrictAttendance.name} district attendance at ${weakestDistrictAttendance.attendanceRate}% (${weakestDistrictAttendance.riskStatus})`,
+    });
+  }
+
+  if (weakestDistrictEvidence) {
+    candidates.push({
+      owner: "MIS / Data Officer",
+      priority: weakestDistrictEvidence.evidenceRate < 60 ? "High" : "Medium",
+      dueDate: "Within 10 days",
+      status: "Open",
+      linkedMetric: `${weakestDistrictEvidence.name} district evidence rate at ${weakestDistrictEvidence.evidenceRate}%`,
+    });
+  }
+
+  if (weakestBlockEvidence) {
+    candidates.push({
+      owner: "Block Coordinator",
+      priority: weakestBlockEvidence.evidenceRate < 60 ? "Medium" : "Low",
+      dueDate: "Within 14 days",
+      status: "Open",
+      linkedMetric: `${weakestBlockEvidence.name} block evidence rate at ${weakestBlockEvidence.evidenceRate}%`,
+    });
+  }
+
+  // De-duplicate on the linked metric and keep 3-5 actions.
+  const seen = new Set<string>();
+  const unique = candidates.filter((action) => {
+    if (seen.has(action.linkedMetric)) return false;
+    seen.add(action.linkedMetric);
+    return true;
+  });
+
+  return unique.slice(0, 5);
 }
 
 export function getProgramReview(filters: ProgramFilters = {}) {
@@ -486,10 +607,10 @@ export function getProgramReview(filters: ProgramFilters = {}) {
   const selectedMonth = filters.month ?? options.months.at(-1) ?? "";
   const selectedFilters: ProgramFilters = { ...filters, month: selectedMonth || undefined };
   const records = filterPblRecords(getPblRecords(), selectedFilters);
-  const metrics = buildMetrics(records);
-  const districts = buildGeographySummary(records, "district");
-  const blocks = buildGeographySummary(records, "block");
-  const schools = buildSchoolRankings(records);
+  const metrics = buildMetrics(records, selectedFilters);
+  const districts = buildGeographySummary(records, "district", selectedFilters);
+  const blocks = buildGeographySummary(records, "block", selectedFilters);
+  const schools = buildSchoolRankings(records, selectedFilters);
 
   return {
     filters: options,
@@ -667,19 +788,22 @@ export function getSchoolRecordsForMonth(filters: ProgramFilters = {}) {
   const selectedFilters: ProgramFilters = { ...filters, month: selectedMonth || undefined };
   const records = filterPblRecords(getPblRecords(), selectedFilters);
 
-  return records.map((record) => ({
-    school: record.school,
-    schoolCode: record.schoolCode,
-    district: record.district,
-    block: record.block,
-    classes: record.classes,
-    subject: record.subject,
-    conducted: record.conducted,
-    evidenceSubmitted: record.evidenceSubmitted,
-    enrollment: record.enrollment,
-    attendance: record.attendance,
-    attendanceRate: percent(record.attendanceRate),
-    riskStatus: classifyRisk(record.attendanceRate),
-    month: record.month,
-  }));
+  return records.map((record) => {
+    const { enrollment, attendance, rate } = recordMetrics(record, selectedFilters);
+    return {
+      school: record.school,
+      schoolCode: record.schoolCode,
+      district: record.district,
+      block: record.block,
+      classes: record.classes,
+      subject: record.subject,
+      conducted: record.conducted,
+      evidenceSubmitted: record.evidenceSubmitted,
+      enrollment,
+      attendance,
+      attendanceRate: percent(rate),
+      riskStatus: classifyRisk(rate),
+      month: record.month,
+    };
+  });
 }

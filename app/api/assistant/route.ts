@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       block: body.block,
     });
 
-    const grant = body.grantId ? getGrantReport(body.grantId, body.month) : null;
+    const grant = (body.grantId || /grant/i.test(body.prompt ?? "")) ? getGrantReport(body.grantId, body.month) : null;
     getFilterOptions(); // keep unused call to maintain logic if expected
 
     const topDistricts = review.districts.top.slice(0, 5)
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       .join("\n");
 
     const grantDataStr = grant 
-      ? `Narrative: ${grant.narrative}\nFacts: ${grant.sourceFacts.join(", ")}`
+      ? `Narrative: ${grant.report?.narrative}\nFacts: ${grant.report?.sourceFacts.join(", ")}`
       : "No grant data selected.";
 
     const systemPrompt = `You are PBL Intelligence Assistant for Mantra4Change, an educational NGO. You analyze Project-Based Learning (PBL) program data from schools across India.

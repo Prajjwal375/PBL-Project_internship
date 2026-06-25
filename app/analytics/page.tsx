@@ -1,7 +1,3 @@
-
-//             {schoolRows.length === 0 && (
-//               <tr>
-//                 <td colSpan={7} className="py-lg text-center text-on-surface-variant font-body-md">
 import { getProgramReview, getFilterOptions, getSchoolRecordsForMonth, type ProgramFilters } from "@/lib/program-intelligence";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -12,7 +8,7 @@ function clean(v: string | string[] | undefined) {
 }
 
 function riskBadge(status: string) {
-  if (status === "On Track") return "bg-[#dcfce7] text-[#166534]";
+  if (status === "On Track") return "bg-[#dcfce7] text-[#166634]";
   if (status === "Behind") return "bg-[#fef9c3] text-[#854d0e]";
   if (status === "At Risk") return "bg-[#ffedd5] text-[#9a3412]";
   return "bg-error-container text-on-error-container";
@@ -32,11 +28,20 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     district: clean(sp.district),
     block: clean(sp.block),
     grade: clean(sp.grade),
+    subject: clean(sp.subject),
   };
 
-  const options = getFilterOptions();
-  const review = getProgramReview(filters);
-  const schoolRows = getSchoolRecordsForMonth(filters);
+  const options = getFilterOptions(filters);
+  // Drop a stale block selection that doesn't belong to the chosen district,
+  // so changing district never leaves the dashboard filtered to an empty set.
+  if (filters.block && !options.blocks.includes(filters.block)) {
+    filters.block = undefined;
+  }
+  const activeMonth = filters.month ?? options.months.at(-1) ?? "";
+  const activeFilters: ProgramFilters = { ...filters, month: activeMonth };
+
+  const review = getProgramReview(activeFilters);
+  const schoolRows = getSchoolRecordsForMonth(activeFilters);
   const m = review.metrics;
 
   return (
@@ -44,7 +49,9 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       <div className="flex justify-between items-end mb-lg">
         <div>
           <h2 className="font-headline-lg text-headline-lg text-on-surface">School Analytics</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Monitor implementation fidelity and outcome metrics across all registered sites.</p>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">
+            Monitor implementation fidelity and outcome metrics across all registered sites.
+          </p>
         </div>
       </div>
 
@@ -52,7 +59,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       <form method="GET" className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md mb-lg flex flex-wrap gap-md items-end shadow-sm">
         <div className="flex flex-col gap-xs flex-1 min-w-[140px]">
           <label className="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">District</label>
-          <select name="district" defaultValue={filters.district ?? "all"} onChange={undefined}
+          <select name="district" defaultValue={filters.district ?? "all"}
             className="h-10 px-sm rounded border border-outline-variant bg-transparent text-body-md font-body-md focus:border-primary outline-none">
             <option value="all">All Districts</option>
             {options.districts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -68,10 +75,25 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
         </div>
         <div className="flex flex-col gap-xs flex-1 min-w-[140px]">
           <label className="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Month</label>
-          <select name="month" defaultValue={filters.month ?? "all"}
+          <select name="month" defaultValue={activeFilters.month}
             className="h-10 px-sm rounded border border-outline-variant bg-transparent text-body-md font-body-md focus:border-primary outline-none">
-            <option value="all">All Months</option>
             {options.months.map(mo => <option key={mo} value={mo}>{mo}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-xs flex-1 min-w-[140px]">
+          <label className="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Grade</label>
+          <select name="grade" defaultValue={filters.grade ?? "all"}
+            className="h-10 px-sm rounded border border-outline-variant bg-transparent text-body-md font-body-md focus:border-primary outline-none">
+            <option value="all">All Grades</option>
+            {options.grades.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-xs flex-1 min-w-[140px]">
+          <label className="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Subject</label>
+          <select name="subject" defaultValue={filters.subject ?? "all"}
+            className="h-10 px-sm rounded border border-outline-variant bg-transparent text-body-md font-body-md focus:border-primary outline-none">
+            <option value="all">All Subjects</option>
+            {options.subjects.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div className="flex items-end gap-sm">
@@ -84,51 +106,111 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
         </div>
       </form>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-md mb-lg">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-md mb-lg">
         {[
           { label: "Total Schools", value: m.totalSchools.toLocaleString(), icon: "school" },
-          { label: "Participation Rate", value: `${m.participationRate}%`, icon: "groups" },
-          { label: "Evidence Rate", value: `${m.evidenceRate}%`, icon: "fact_check" },
+          { label: "Participating", value: m.participatingSchools.toLocaleString(), icon: "groups" },
+          { label: "Participation %", value: `${m.participationRate}%`, icon: "task_alt" },
+          { label: "Evidence %", value: `${m.evidenceRate}%`, icon: "fact_check" },
+          { label: "Total Enrollment", value: m.totalEnrollment.toLocaleString(), icon: "diversity_3" },
+          { label: "Total Attendance", value: m.totalAttendance.toLocaleString(), icon: "how_to_reg" },
+          { label: "Attendance %", value: `${m.attendanceRate}%`, icon: "show_chart" },
         ].map(card => (
-          <div key={card.label} className="bg-surface-container-lowest border border-tertiary-fixed rounded-lg p-md flex justify-between items-center">
-            <div>
-              <div className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">{card.label}</div>
-              <div className="font-headline-lg text-headline-lg text-on-surface mt-xs">{card.value}</div>
+          <div key={card.label} className="bg-surface-container-lowest border border-tertiary-fixed rounded-lg p-md flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">{card.label}</span>
+              <span className="material-symbols-outlined text-outline">{card.icon}</span>
             </div>
-            <span className="material-symbols-outlined text-outline text-[32px]">{card.icon}</span>
+            <div className="font-headline-lg text-headline-lg text-on-surface mt-lg">{card.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-12 gap-lg mb-lg">
-        <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm">
-          <h3 className="font-headline-md text-headline-md text-on-surface mb-md">District Performance</h3>
-          <div className="flex flex-col gap-sm">
-            {review.districts.top.map(d => (
-              <div key={d.name} className="flex items-center gap-sm">
-                <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{d.name}</span>
-                <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
-                  <div className={`h-full ${barColor(d.riskStatus)} rounded-full`} style={{ width: `${Math.min(d.attendanceRate, 100)}%` }} />
+      {/* Month-over-Month Movement */}
+      {review.movement.length > 0 && (
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md mb-lg shadow-sm">
+          <h3 className="font-headline-md text-headline-md text-on-surface mb-md">Month-over-Month Movement</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
+            {review.movement.map(mv => (
+              <div key={mv.metric} className="flex items-center justify-between p-md bg-surface-container-low rounded-lg border border-tertiary-fixed">
+                <div>
+                  <div className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">{mv.metric}</div>
+                  <div className="font-headline-md text-headline-md text-on-surface mt-xs">{mv.current}%</div>
+                  <div className="font-label-sm text-label-sm text-on-surface-variant">prev: {mv.previous}%</div>
                 </div>
-                <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{d.attendanceRate}%</span>
+                <div className={`flex items-center gap-xs font-headline-md text-headline-md ${mv.delta >= 0 ? "text-[#166634]" : "text-error"}`}>
+                  <span className="material-symbols-outlined">{mv.delta >= 0 ? "trending_up" : "trending_down"}</span>
+                  {mv.delta > 0 ? "+" : ""}{mv.delta}%
+                </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* District & Block Performance Charts */}
+      <div className="grid grid-cols-12 gap-lg mb-lg">
+        <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm">
+          <h3 className="font-headline-md text-headline-md text-on-surface mb-md">District Performance</h3>
+          <div className="mb-md">
+            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">High Performing</div>
+            <div className="flex flex-col gap-sm">
+              {review.districts.top.map(d => (
+                <div key={d.name} className="flex items-center gap-sm">
+                  <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{d.name}</span>
+                  <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(d.riskStatus)} rounded-full`} style={{ width: `${Math.min(d.attendanceRate, 100)}%` }} />
+                  </div>
+                  <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{d.attendanceRate}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">Needs Follow-up</div>
+            <div className="flex flex-col gap-sm">
+              {review.districts.bottom.map(d => (
+                <div key={d.name} className="flex items-center gap-sm">
+                  <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{d.name}</span>
+                  <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(d.riskStatus)} rounded-full`} style={{ width: `${Math.min(d.attendanceRate, 100)}%` }} />
+                  </div>
+                  <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{d.attendanceRate}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
         <div className="col-span-12 lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-sm">
           <h3 className="font-headline-md text-headline-md text-on-surface mb-md">Block Performance</h3>
-          <div className="flex flex-col gap-sm">
-            {review.blocks.top.map(b => (
-              <div key={b.name} className="flex items-center gap-sm">
-                <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{b.name}</span>
-                <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
-                  <div className={`h-full ${barColor(b.riskStatus)} rounded-full`} style={{ width: `${Math.min(b.attendanceRate, 100)}%` }} />
+          <div className="mb-md">
+            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">High Performing</div>
+            <div className="flex flex-col gap-sm">
+              {review.blocks.top.map(b => (
+                <div key={b.name} className="flex items-center gap-sm">
+                  <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{b.name}</span>
+                  <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(b.riskStatus)} rounded-full`} style={{ width: `${Math.min(b.attendanceRate, 100)}%` }} />
+                  </div>
+                  <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{b.attendanceRate}%</span>
                 </div>
-                <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{b.attendanceRate}%</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">Needs Follow-up</div>
+            <div className="flex flex-col gap-sm">
+              {review.blocks.bottom.map(b => (
+                <div key={b.name} className="flex items-center gap-sm">
+                  <span className="w-24 text-label-sm font-label-sm text-on-surface-variant truncate">{b.name}</span>
+                  <div className="flex-1 h-3 bg-surface-container rounded-full overflow-hidden">
+                    <div className={`h-full ${barColor(b.riskStatus)} rounded-full`} style={{ width: `${Math.min(b.attendanceRate, 100)}%` }} />
+                  </div>
+                  <span className="text-label-sm font-label-sm text-on-surface w-10 text-right">{b.attendanceRate}%</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -188,7 +270,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
         </div>
         <div className="p-sm border-t border-outline-variant bg-surface-bright flex justify-between items-center text-label-sm font-label-sm text-on-surface-variant">
           <span>Showing {Math.min(schoolRows.length, 50)} of {schoolRows.length} records</span>
-          <span className="text-on-surface-variant">Filter by month/district to narrow results</span>
+          <span>Filter by month/district to narrow results</span>
         </div>
       </div>
     </main>

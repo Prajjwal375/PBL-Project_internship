@@ -1,222 +1,3 @@
-// "use client";
-
-// import { useState, useRef, useEffect } from "react";
-
-// type Message = {
-//   role: "user" | "assistant";
-//   text?: string;
-//   facts?: string[];
-// };
-
-// type FilterOptions = {
-//   months: string[];
-//   districts: string[];
-// };
-
-// export default function AIAssistant() {
-//   const [messages, setMessages] = useState<Message[]>([]);
-//   const [inputValue, setInputValue] = useState("");
-//   const [isLoading, setIsLoading] = useState(false);
-  
-//   const [options, setOptions] = useState<FilterOptions>({ months: [], districts: [] });
-//   const [selectedMonth, setSelectedMonth] = useState("");
-//   const [selectedDistrict, setSelectedDistrict] = useState("");
-
-//   const chatEndRef = useRef<HTMLDivElement>(null);
-
-//   useEffect(() => {
-//     // Fetch filter options on mount
-//     fetch("/api/filters")
-//       .then((res) => res.json())
-//       .then((data) => {
-//         setOptions({
-//           months: data.months || [],
-//           districts: data.districts || [],
-//         });
-//         if (data.months?.length) {
-//           setSelectedMonth(data.months[data.months.length - 1]);
-//         }
-//       })
-//       .catch(console.error);
-//   }, []);
-
-//   useEffect(() => {
-//     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-//   }, [messages, isLoading]);
-
-//   const handleSend = async (promptText: string = inputValue) => {
-//     if (!promptText.trim()) return;
-
-//     setMessages((prev) => [...prev, { role: "user", text: promptText }]);
-//     setInputValue("");
-//     setIsLoading(true);
-
-//     try {
-//       const res = await fetch("/api/assistant", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({
-//           prompt: promptText,
-//           month: selectedMonth || undefined,
-//           district: selectedDistrict || undefined,
-//         }),
-//       });
-//       const data = await res.json();
-      
-//       setMessages((prev) => [
-//         ...prev,
-//         { role: "assistant", text: data.answer, facts: data.facts },
-//       ]);
-//     } catch (error) {
-//       console.error(error);
-//       setMessages((prev) => [
-//         ...prev,
-//         { role: "assistant", text: "Sorry, I encountered an error processing your request." },
-//       ]);
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   const suggestedPrompts = [
-//     "Which schools are at risk?",
-//     "Summarize September performance",
-//     "Which district improved the most?",
-//     "Generate grant summary",
-//     "Compare July and August",
-//   ];
-
-//   return (
-//     <main className="p-lg bg-background min-h-screen flex flex-col h-[calc(100vh-64px)]">
-//       <div className="mb-md shrink-0">
-//         <h1 className="font-headline-lg text-headline-lg text-on-surface">AI Assistant</h1>
-//         <p className="font-body-md text-body-md text-on-surface-variant">
-//           Ask questions about program performance, grants, and evidence.
-//         </p>
-//       </div>
-
-//       <div className="flex-1 bg-surface-container-lowest border border-tertiary-fixed rounded-lg flex flex-col overflow-hidden relative">
-//         {/* CHAT WINDOW */}
-//         <div className="flex-1 overflow-y-auto p-md flex flex-col gap-md">
-//           {messages.length === 0 ? (
-//             <div className="flex-1 flex flex-col items-center justify-center text-center">
-//               <span className="material-symbols-outlined text-[48px] text-outline mb-sm">smart_toy</span>
-//               <h2 className="font-headline-md text-on-surface mb-xs">How can I help you today?</h2>
-//               <p className="font-body-md text-on-surface-variant max-w-md mb-lg">
-//                 I can analyze attendance rates, evaluate district performance, or generate narrative summaries for your grants.
-//               </p>
-              
-//               <div className="flex flex-wrap justify-center gap-sm max-w-2xl">
-//                 {suggestedPrompts.map((prompt) => (
-//                   <button
-//                     key={prompt}
-//                     onClick={() => handleSend(prompt)}
-//                     className="px-md py-sm bg-surface-container-low hover:bg-surface-container border border-outline-variant rounded-full text-on-surface font-body-md transition-colors"
-//                   >
-//                     {prompt}
-//                   </button>
-//                 ))}
-//               </div>
-//             </div>
-//           ) : (
-//             <>
-//               {messages.map((msg, idx) => (
-//                 <div
-//                   key={idx}
-//                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-//                 >
-//                   {msg.role === "user" ? (
-//                     <div className="bg-primary text-white px-md py-sm rounded-lg max-w-[80%] font-body-md">
-//                       {msg.text}
-//                     </div>
-//                   ) : (
-//                     <div className="bg-surface border border-outline-variant px-md py-sm rounded-lg max-w-[80%] flex flex-col gap-sm">
-//                       <div className="flex items-center gap-xs font-label-sm text-primary mb-xs">
-//                         <span className="material-symbols-outlined text-[16px]">verified</span>
-//                         Based on real CSV data
-//                       </div>
-//                       <p className="font-body-md text-on-surface">{msg.text}</p>
-//                       {msg.facts && msg.facts.length > 0 && (
-//                         <ul className="flex flex-col gap-xs mt-xs">
-//                           {msg.facts.map((fact, fIdx) => (
-//                             <li key={fIdx} className="flex gap-sm font-body-md text-on-surface-variant">
-//                               <span className="w-1.5 h-1.5 rounded-full bg-outline mt-2 shrink-0" />
-//                               <span>{fact}</span>
-//                             </li>
-//                           ))}
-//                         </ul>
-//                       )}
-//                     </div>
-//                   )}
-//                 </div>
-//               ))}
-//               {isLoading && (
-//                 <div className="flex justify-start">
-//                   <div className="bg-surface border border-outline-variant px-md py-sm rounded-lg flex items-center gap-sm">
-//                     <span className="material-symbols-outlined animate-spin text-primary">progress_activity</span>
-//                     <span className="font-body-md text-on-surface-variant">Analyzing data...</span>
-//                   </div>
-//                 </div>
-//               )}
-//               <div ref={chatEndRef} />
-//             </>
-//           )}
-//         </div>
-
-//         {/* INPUT BAR */}
-//         <div className="p-md bg-surface-container-low border-t border-tertiary-fixed shrink-0">
-//           <div className="flex gap-sm mb-sm">
-//             <select
-//               value={selectedMonth}
-//               onChange={(e) => setSelectedMonth(e.target.value)}
-//               className="bg-surface border border-outline-variant rounded px-sm py-1 font-label-sm text-on-surface focus:outline-none focus:border-primary"
-//             >
-//               <option value="">Any Month</option>
-//               {options.months.map((m) => (
-//                 <option key={m} value={m}>{m}</option>
-//               ))}
-//             </select>
-//             <select
-//               value={selectedDistrict}
-//               onChange={(e) => setSelectedDistrict(e.target.value)}
-//               className="bg-surface border border-outline-variant rounded px-sm py-1 font-label-sm text-on-surface focus:outline-none focus:border-primary max-w-[150px]"
-//             >
-//               <option value="">All Districts</option>
-//               {options.districts.map((d) => (
-//                 <option key={d} value={d}>{d}</option>
-//               ))}
-//             </select>
-//           </div>
-//           <form
-//             onSubmit={(e) => {
-//               e.preventDefault();
-//               handleSend();
-//             }}
-//             className="flex gap-sm"
-//           >
-//             <input
-//               type="text"
-//               value={inputValue}
-//               onChange={(e) => setInputValue(e.target.value)}
-//               placeholder="Ask anything about program performance..."
-//               className="flex-1 bg-surface border border-outline-variant rounded-lg px-md py-sm font-body-md text-on-surface focus:outline-none focus:border-primary"
-//             />
-//             <button
-//               type="submit"
-//               disabled={!inputValue.trim() || isLoading}
-//               className="bg-primary hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white w-12 rounded-lg flex items-center justify-center transition-colors"
-//             >
-//               <span className="material-symbols-outlined">send</span>
-//             </button>
-//           </form>
-//         </div>
-//       </div>
-//     </main>
-//   );
-// }
-
-
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -240,15 +21,38 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [months, setMonths] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [month, setMonth] = useState("");
+  const [district, setDistrict] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const idCounter = useRef(0);
+
+  const nextId = () => {
+    idCounter.current += 1;
+    return idCounter.current.toString();
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    fetch("/api/filters")
+      .then(res => res.json())
+      .then(data => {
+        setMonths(data.months ?? []);
+        setDistricts(data.districts ?? []);
+      })
+      .catch(() => {
+        setMonths([]);
+        setDistricts([]);
+      });
+  }, []);
+
   async function send(prompt: string) {
     if (!prompt.trim() || loading) return;
-    const userMsg: Message = { id: Date.now().toString(), role: "user", text: prompt };
+    const userMsg: Message = { id: nextId(), role: "user", text: prompt };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setLoading(true);
@@ -257,11 +61,15 @@ export default function AssistantPage() {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          month: month || undefined,
+          district: district || undefined,
+        }),
       });
       const data = await res.json();
       const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: nextId(),
         role: "assistant",
         text: data.answer ?? "No response available.",
         facts: data.facts ?? [],
@@ -269,7 +77,7 @@ export default function AssistantPage() {
       setMessages(prev => [...prev, assistantMsg]);
     } catch {
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
+        id: nextId(),
         role: "assistant",
         text: "Sorry, something went wrong. Please try again.",
       }]);
@@ -283,7 +91,9 @@ export default function AssistantPage() {
       {/* Header */}
       <div className="px-xl pt-xl pb-md border-b border-outline-variant bg-surface-container-lowest">
         <h2 className="font-headline-lg text-headline-lg text-on-surface">AI Assistant</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Ask questions about school performance, grants, and program trends. Answers are grounded in your CSV data.</p>
+        <p className="font-body-md text-body-md text-on-surface-variant mt-xs">
+          Ask questions about school performance, grants, and program trends. Answers are grounded in your CSV data.
+        </p>
       </div>
 
       {/* Chat Area */}
@@ -364,6 +174,19 @@ export default function AssistantPage() {
 
       {/* Input Bar */}
       <div className="px-xl py-md border-t border-outline-variant bg-surface-container-lowest">
+        <div className="flex flex-wrap gap-sm items-center max-w-4xl mx-auto mb-sm">
+          <span className="font-label-sm text-label-sm text-on-surface-variant">Context:</span>
+          <select value={month} onChange={e => setMonth(e.target.value)}
+            className="h-9 px-sm rounded border border-outline-variant bg-surface-container-lowest text-label-md font-label-md focus:border-primary outline-none">
+            <option value="">Latest month</option>
+            {months.map(mo => <option key={mo} value={mo}>{mo}</option>)}
+          </select>
+          <select value={district} onChange={e => setDistrict(e.target.value)}
+            className="h-9 px-sm rounded border border-outline-variant bg-surface-container-lowest text-label-md font-label-md focus:border-primary outline-none">
+            <option value="">All districts</option>
+            {districts.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
         <div className="flex gap-sm items-end max-w-4xl mx-auto">
           <div className="flex-1 relative">
             <input
