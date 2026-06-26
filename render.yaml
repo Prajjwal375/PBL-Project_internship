@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: pbl-project
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false   # You will set this manually in the Render dashboard
+    autoDeploy: true
