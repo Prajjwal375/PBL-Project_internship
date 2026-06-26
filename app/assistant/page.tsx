@@ -9,14 +9,6 @@ type Message = {
   facts?: string[];
 };
 
-const SUGGESTED = [
-  "Which schools are at risk?",
-  "Summarize September performance",
-  "Which district improved the most?",
-  "Generate grant summary",
-  "Compare July and August",
-];
-
 export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -25,6 +17,7 @@ export default function AssistantPage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [month, setMonth] = useState("");
   const [district, setDistrict] = useState("");
+  const [suggested, setSuggested] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
 
@@ -41,12 +34,33 @@ export default function AssistantPage() {
     fetch("/api/filters")
       .then(res => res.json())
       .then(data => {
-        setMonths(data.months ?? []);
-        setDistricts(data.districts ?? []);
+        const loadedMonths: string[] = data.months ?? [];
+        const loadedDistricts: string[] = data.districts ?? [];
+        setMonths(loadedMonths);
+        setDistricts(loadedDistricts);
+
+        // Build suggested prompts from real month names — no hardcoding.
+        const latest = loadedMonths.at(-1) ?? "";
+        const prev = loadedMonths.at(-2) ?? "";
+        const prompts = [
+          "Which schools are at risk?",
+          latest ? `Summarize ${latest} performance` : "Summarize latest month performance",
+          "Which district improved the most?",
+          "Generate grant summary",
+          prev && latest ? `Compare ${prev} and ${latest}` : "Show month-over-month changes",
+        ];
+        setSuggested(prompts);
       })
       .catch(() => {
         setMonths([]);
         setDistricts([]);
+        setSuggested([
+          "Which schools are at risk?",
+          "Summarize latest month performance",
+          "Which district improved the most?",
+          "Generate grant summary",
+          "Show month-over-month changes",
+        ]);
       });
   }, []);
 
@@ -163,7 +177,7 @@ export default function AssistantPage() {
       {/* Suggested Prompts */}
       {messages.length === 0 && (
         <div className="px-xl pb-sm flex flex-wrap gap-sm justify-center">
-          {SUGGESTED.map(s => (
+          {suggested.map(s => (
             <button key={s} onClick={() => send(s)}
               className="px-md py-xs rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface font-label-md hover:border-primary hover:bg-primary-container hover:text-on-primary-container transition-colors">
               {s}

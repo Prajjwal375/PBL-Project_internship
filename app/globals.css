@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+
+/* this is tailwind css new methods */
 @theme inline {
   --color-primary-fixed: #dbeafe;
   --color-on-secondary-container: #1e293b;

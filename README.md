@@ -1,6 +1,6 @@
 # PBL Program Intelligence & Grant Reporting Assistant
 
-A web app that turns three months of school-level Project-Based Learning (PBL) data into review-ready decisions, and turns those computed facts into grant-ready report sections.
+A web app that turns months of school-level Project-Based Learning (PBL) data into review-ready decisions, and turns those computed facts into grant-ready report sections.
 
 The idea is simple: program and leadership teams should not have to read raw CSV rows before a monthly review. The app does the math for them — participation, evidence, attendance, risk, and month-over-month change — and then helps them write a grant report that only uses numbers the app actually computed.
 
@@ -235,6 +235,13 @@ The `/api/assistant` route:
 2. If `GEMINI_API_KEY` is set, it sends those facts to Gemini with strict instructions: only use the provided data, never invent schools or numbers, return JSON with an `answer`, `facts`, and `references`.
 3. If the key is missing **or** the AI call fails (with retries for rate limits), it falls back to `getAssistantResponse()` — a rule-based generator that answers from the same computed facts.
 
+The `/api/grant-narrative` route follows the same pattern for the Grant Reporting page:
+
+1. Builds the grant facts via `getGrantReport()`.
+2. If `GEMINI_API_KEY` is set, it asks Gemini to write a 2-4 sentence professional donor-report narrative using only the provided source facts.
+3. If the key is missing or the call fails, it returns the deterministic template narrative immediately.
+4. The narrative on the page is labeled **"AI-generated"** or **"Deterministic summary"** honestly, based on what was actually used.
+
 ### The guardrail
 
 Every fact-based feature works without AI:
@@ -273,6 +280,14 @@ The brief said to document assumptions and move on where data is ambiguous. Here
 - **Evidence images** are served from `public/evidence/` using the file name from the media index CSV.
 - The numbers shown are only as accurate as the synthetic CSVs provided.
 
+### Why per-class numeric columns are ground truth for Grade/Subject filtering
+
+The CSV has two ways to know which grades a school taught: a free-text field ("In which class/classes did you conduct the PBL project?") and six numeric columns (Class 6/7/8 × Science/Math enrollment and attendance). These two do not always agree. For example, a row can have the text "Classes 7 and 8" yet still carry real, non-zero numbers in the Class 6 Science and Math attendance columns.
+
+The app uses the numeric columns as ground truth. When a user selects Grade = Class 6, the metric calculation narrows to the Class 6 enrollment and attendance numbers for every school — it does not drop schools whose text field does not mention Class 6. This is the correct behaviour: the numeric columns are what the teachers actually entered; the text field is an unreliable summary.
+
+This is the function `recordMetrics()` in `lib/program-intelligence.ts`, and it is what `gradesToInclude()` and `subjectsToInclude()` control. `filterPblRecords()` intentionally filters only on month, district, and block — it does not filter rows by grade or subject text.
+
 ---
 
 ## Limitations
@@ -281,7 +296,7 @@ The brief said to document assumptions and move on where data is ambiguous. Here
 - **CSVs are read at request time** in development. For real scale this should be cached or moved into a database.
 - **No authentication.** Anyone who can reach the app can see everything. A real deployment needs login and role-based access (program staff vs leadership vs donors).
 - **AI output is not stored or audited.** Each answer is generated fresh; there is no history or approval workflow.
-- **Export is copy-to-clipboard text**, not a formatted PDF/DOCX. The brief lists PDF/DOCX export as optional, so this was kept simple.
+- **DOCX export is not implemented.** The brief lists it as optional. PDF export via jsPDF is implemented on the Grant Reporting and Review Summary pages.
 - **The icon font** is loaded via a `<link>` tag, which Next flags as a warning. It works fine but could be migrated to `next/font`.
 - **Tests are not included.** The logic is structured to be testable (pure functions in one file), but no test suite is written yet.
 

@@ -185,6 +185,25 @@ function percent(value: number) {
   return Math.round(value * 1000) / 10;
 }
 
+// Parse a reporting month string into a sortable timestamp.
+// Handles both "YYYY-MM" (ISO, e.g. "2025-09") and "Month YYYY" (e.g. "September 2025").
+// Falls back to lexicographic comparison for unknown formats.
+function parseMonthToDate(value: string): number {
+  // ISO format: 2025-09
+  const iso = value.match(/^(\d{4})-(\d{2})$/);
+  if (iso) return new Date(`${iso[1]}-${iso[2]}-01`).getTime();
+
+  // "Month YYYY" format: September 2025
+  const named = value.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (named) {
+    const ts = new Date(`${named[1]} 1, ${named[2]}`).getTime();
+    if (!isNaN(ts)) return ts;
+  }
+
+  // Fallback: lexicographic order (may be wrong, but won't crash)
+  return 0;
+}
+
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, "en", { numeric: true }),
@@ -192,7 +211,15 @@ function unique(values: string[]) {
 }
 
 function sortMonths(values: string[]) {
-  return unique(values);
+  const unique = Array.from(new Set(values.filter(Boolean)));
+  return unique.sort((left, right) => {
+    const tLeft = parseMonthToDate(left);
+    const tRight = parseMonthToDate(right);
+    // Both parseable — sort by date
+    if (tLeft !== 0 && tRight !== 0) return tLeft - tRight;
+    // Fallback: lexicographic with numeric awareness
+    return left.localeCompare(right, "en", { numeric: true });
+  });
 }
 
 // Which class numbers should be included in a metric calculation, given the
@@ -352,16 +379,11 @@ export function getFilterOptions(filters?: Pick<ProgramFilters, "district">) {
 }
 
 export function filterPblRecords(records: PblRecord[], filters: ProgramFilters) {
-  const selectedGrade = filters.grade?.match(/[6-8]/)?.[0];
-  const selectedSubject = filters.subject?.toLowerCase();
-
   return records.filter(
     (record) =>
       (!filters.month || record.month === filters.month) &&
       (!filters.district || record.district === filters.district) &&
-      (!filters.block || record.block === filters.block) &&
-      (!selectedGrade || (record.classes && record.classes.includes(selectedGrade))) &&
-      (!selectedSubject || (record.subject && record.subject.toLowerCase().includes(selectedSubject))),
+      (!filters.block || record.block === filters.block),
   );
 }
 

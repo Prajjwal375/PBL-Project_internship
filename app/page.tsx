@@ -162,7 +162,7 @@ export default function Home() {
       <div className="col-span-8 bg-surface-container-lowest border border-tertiary-fixed rounded-lg p-lg flex flex-col">
         <div className="flex justify-between items-center mb-md border-b border-tertiary-fixed pb-md">
           <h3 className="font-headline-md text-headline-md text-on-surface">Top Performing Schools</h3>
-          <Link href="/analytics" className="text-primary font-label-md hover:underline">View All</Link>
+          <Link href={`/analytics?month=${encodeURIComponent(review.latestMonth)}`} className="text-primary font-label-md hover:underline">View All</Link>
         </div>
         <table className="w-full text-left font-body-md text-body-md">
           <thead>
@@ -181,11 +181,23 @@ export default function Home() {
                     {school.school.substring(0, 3).toUpperCase()}
                   </div>
                   <div>
-                    <div className="text-on-surface font-medium">{school.school}</div>
+                    <Link
+                      href={`/analytics?month=${encodeURIComponent(review.latestMonth)}&district=${encodeURIComponent(school.district)}`}
+                      className="text-on-surface font-medium hover:underline"
+                    >
+                      {school.school}
+                    </Link>
                     <div className="text-on-surface-variant text-label-sm">{school.block}</div>
                   </div>
                 </td>
-                <td className="py-md text-on-surface-variant">{school.district}</td>
+                <td className="py-md text-on-surface-variant">
+                  <Link
+                    href={`/analytics?month=${encodeURIComponent(review.latestMonth)}&district=${encodeURIComponent(school.district)}`}
+                    className="hover:underline"
+                  >
+                    {school.district}
+                  </Link>
+                </td>
                 <td className="py-md text-on-surface">{school.attendanceRate}%</td>
                 <td className="py-md">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm ${riskBadge(school.riskStatus)}`}>
@@ -210,7 +222,7 @@ export default function Home() {
                 </div>
                 <div>
                   <div className="font-label-md text-label-md text-on-surface font-semibold">Generate Grant Report</div>
-                  <div className="font-label-sm text-label-sm text-on-surface-variant">Q3 Data ready</div>
+                  <div className="font-label-sm text-label-sm text-on-surface-variant">{review.latestMonth} data ready</div>
                 </div>
               </div>
               <span className="material-symbols-outlined text-outline-variant">arrow_forward</span>

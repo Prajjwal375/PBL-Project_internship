@@ -221,57 +221,67 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           <h3 className="font-headline-md text-headline-md text-on-surface">Detailed School Records</h3>
           <span className="text-label-sm font-label-sm text-on-surface-variant">Showing {Math.min(schoolRows.length, 50)} of {schoolRows.length}</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
-                <th className="p-md font-semibold">School Name</th>
-                <th className="p-md font-semibold">District</th>
-                <th className="p-md font-semibold">Block</th>
-                <th className="p-md font-semibold">Attendance %</th>
-                <th className="p-md font-semibold">PBL Conducted</th>
-                <th className="p-md font-semibold">Evidence</th>
-                <th className="p-md font-semibold">Risk Status</th>
-              </tr>
-            </thead>
-            <tbody className="text-body-md font-body-md text-on-surface divide-y divide-outline-variant">
-              {schoolRows.slice(0, 50).map((row, i) => (
-                <tr key={i} className="hover:bg-surface-container-low transition-colors">
-                  <td className="p-md font-medium">{row.school}</td>
-                  <td className="p-md text-on-surface-variant">{row.district}</td>
-                  <td className="p-md text-on-surface-variant">{row.block}</td>
-                  <td className="p-md">
-                    <div className="flex items-center gap-sm">
-                      <span>{row.attendanceRate}%</span>
-                      <div className="w-16 h-1.5 bg-surface-container rounded-full">
-                        <div className={`h-full ${barColor(row.riskStatus)} rounded-full`} style={{ width: `${Math.min(row.attendanceRate, 100)}%` }} />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-md">
-                    {row.conducted
-                      ? <span className="text-[#16a34a]"><span className="material-symbols-outlined text-sm">check_circle</span></span>
-                      : <span className="text-on-surface-variant"><span className="material-symbols-outlined text-sm">remove</span></span>}
-                  </td>
-                  <td className="p-md">
-                    {row.evidenceSubmitted
-                      ? <span className="text-[#16a34a]"><span className="material-symbols-outlined text-sm">check_circle</span></span>
-                      : <span className="text-on-surface-variant"><span className="material-symbols-outlined text-sm">remove</span></span>}
-                  </td>
-                  <td className="p-md">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-label-sm ${riskBadge(row.riskStatus)}`}>
-                      {row.riskStatus}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="p-sm border-t border-outline-variant bg-surface-bright flex justify-between items-center text-label-sm font-label-sm text-on-surface-variant">
-          <span>Showing {Math.min(schoolRows.length, 50)} of {schoolRows.length} records</span>
-          <span>Filter by month/district to narrow results</span>
-        </div>
+        {schoolRows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <span className="material-symbols-outlined text-[40px] text-outline mb-md">search_off</span>
+            <p className="font-headline-md text-headline-md text-on-surface">No schools match these filters</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Try widening District, Block, Grade, or Subject.</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
+                    <th className="p-md font-semibold">School Name</th>
+                    <th className="p-md font-semibold">District</th>
+                    <th className="p-md font-semibold">Block</th>
+                    <th className="p-md font-semibold">Attendance %</th>
+                    <th className="p-md font-semibold">PBL Conducted</th>
+                    <th className="p-md font-semibold">Evidence</th>
+                    <th className="p-md font-semibold">Risk Status</th>
+                  </tr>
+                </thead>
+                <tbody className="text-body-md font-body-md text-on-surface divide-y divide-outline-variant">
+                  {schoolRows.slice(0, 50).map((row, i) => (
+                    <tr key={i} className="hover:bg-surface-container-low transition-colors">
+                      <td className="p-md font-medium">{row.school}</td>
+                      <td className="p-md text-on-surface-variant">{row.district}</td>
+                      <td className="p-md text-on-surface-variant">{row.block}</td>
+                      <td className="p-md">
+                        <div className="flex items-center gap-sm">
+                          <span>{row.attendanceRate}%</span>
+                          <div className="w-16 h-1.5 bg-surface-container rounded-full">
+                            <div className={`h-full ${barColor(row.riskStatus)} rounded-full`} style={{ width: `${Math.min(row.attendanceRate, 100)}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-md">
+                        {row.conducted
+                          ? <span className="text-[#16a34a]"><span className="material-symbols-outlined text-sm">check_circle</span></span>
+                          : <span className="text-on-surface-variant"><span className="material-symbols-outlined text-sm">remove</span></span>}
+                      </td>
+                      <td className="p-md">
+                        {row.evidenceSubmitted
+                          ? <span className="text-[#16a34a]"><span className="material-symbols-outlined text-sm">check_circle</span></span>
+                          : <span className="text-on-surface-variant"><span className="material-symbols-outlined text-sm">remove</span></span>}
+                      </td>
+                      <td className="p-md">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-label-sm ${riskBadge(row.riskStatus)}`}>
+                          {row.riskStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-sm border-t border-outline-variant bg-surface-bright flex justify-between items-center text-label-sm font-label-sm text-on-surface-variant">
+              <span>Showing {Math.min(schoolRows.length, 50)} of {schoolRows.length} records</span>
+              <span>Filter by month/district to narrow results</span>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );

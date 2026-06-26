@@ -23,12 +23,16 @@ export async function POST(request: Request) {
     });
 
     const grant = (body.grantId || /grant/i.test(body.prompt ?? "")) ? getGrantReport(body.grantId, body.month) : null;
-    getFilterOptions(); // keep unused call to maintain logic if expected
+
+    // Build context entirely from computed data — no hardcoded months or counts.
+    const filterOptions = getFilterOptions();
+    const monthList = filterOptions.months;
+    const totalRecordsApprox = review.metrics.totalSchools * monthList.length;
 
     const topDistricts = review.districts.top.slice(0, 5)
       .map(d => `${d.name} (${d.attendanceRate}% - ${d.riskStatus})`)
       .join("\n");
-    
+
     const bottomDistricts = review.districts.bottom.slice(0, 5)
       .map(d => `${d.name} (${d.attendanceRate}% - ${d.riskStatus})`)
       .join("\n");
@@ -41,18 +45,18 @@ export async function POST(request: Request) {
       .map(s => `${s.school} in ${s.district} (${s.attendanceRate}% - ${s.riskStatus})`)
       .join("\n");
 
-    const grantDataStr = grant 
+    const grantDataStr = grant
       ? `Narrative: ${grant.report?.narrative}\nFacts: ${grant.report?.sourceFacts.join(", ")}`
       : "No grant data selected.";
 
     const systemPrompt = `You are PBL Intelligence Assistant for Mantra4Change, an educational NGO. You analyze Project-Based Learning (PBL) program data from schools across India.
 
 You have access to real program data from CSV files:
-- 3 months of data: July 2025, August 2025, September 2025
-- 2300+ school records per month
+- Available months: ${monthList.join(", ")}
+- Approximately ${totalRecordsApprox.toLocaleString()} school records across all months
 - Risk classification: On Track (>=75%), Behind (>=60%), At Risk (>=35%), Critical (<35%)
 
-CURRENT PROGRAM DATA:
+CURRENT PROGRAM DATA (month: ${review.latestMonth}):
 - Total Schools: ${review.metrics.totalSchools}
 - Participating Schools: ${review.metrics.participatingSchools}
 - Participation Rate: ${review.metrics.participationRate}%
@@ -60,7 +64,11 @@ CURRENT PROGRAM DATA:
 - Evidence Rate: ${review.metrics.evidenceRate}%
 - Attendance Rate: ${review.metrics.attendanceRate}%
 - Risk Status: ${review.metrics.riskStatus}
-- Latest Month: ${review.latestMonth}
+
+MONTH-OVER-MONTH CHANGE (current month vs previous month):
+${review.movement.length > 0
+  ? review.movement.map(m => `- ${m.metric}: ${m.previous}% → ${m.current}% (${m.delta >= 0 ? "+" : ""}${m.delta}%)`).join("\n")
+  : `- No prior month available for comparison (${review.latestMonth} is the first month in the dataset).`}
 
 TOP DISTRICTS:
 ${topDistricts || "None"}

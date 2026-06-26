@@ -1,6 +1,7 @@
 import { getGrantReport } from "@/lib/program-intelligence";
 import CopyButton from "../components/CopyButton";
 import ExportPdfButton from "../components/ExportPdfButton";
+import GrantNarrative from "../components/GrantNarrative";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -236,25 +237,13 @@ export default async function ReportingPage({ searchParams }: PageProps) {
                 <span className="material-symbols-outlined text-primary">auto_awesome</span>
                 <h3 className="font-headline-md text-headline-md text-on-surface">Grant Summary</h3>
               </div>
-              <span className="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-sm py-xs rounded">Drafted Today</span>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-lg">
-              <div>
-                <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">Grant Narrative</div>
-                <p className="font-body-md text-body-md text-on-surface leading-relaxed">{report.narrative}</p>
-              </div>
-              <div>
-                <div className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">Source Facts</div>
-                <div className="flex flex-col gap-xs">
-                  {report.sourceFacts.map((fact, i) => (
-                    <div key={i} className="flex items-start gap-sm">
-                      <div className="w-1.5 h-1.5 rounded-full bg-on-surface-variant mt-1.5 shrink-0" />
-                      <span className="font-label-sm text-label-sm text-on-surface-variant italic">{fact}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <GrantNarrative
+              initialNarrative={report.narrative}
+              sourceFacts={report.sourceFacts}
+              grantId={report.performance.grantId}
+              month={report.performance.reportingMonth}
+            />
           </div>
 
           {/* Evidence */}

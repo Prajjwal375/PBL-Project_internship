@@ -17,7 +17,7 @@ export default function Header() {
   const title = titles[pathname] ?? "PBL Intelligence";
 
   return (
-    <header className="fixed left-72 right-0 top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header className="fixed left-64 right-0 top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="flex h-20 items-center justify-between gap-4 px-8">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Mantra4Change</p>
